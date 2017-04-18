@@ -2,8 +2,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Authentication;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
+using SampleMvcApp.Models;
 using SampleMvcApp.ViewModels;
+using System;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -34,17 +38,34 @@ namespace SampleMvcApp.Controllers
         }
 
         [Authorize]
-        public IActionResult Profile()
+        public async Task<IActionResult> Profile()
         {
             var accessToken = User.Claims.FirstOrDefault(c => c.Type == "access_token").Value;
             var refreshToken = User.Claims.FirstOrDefault(c => c.Type == "refresh_token").Value;
 
-            return View(new UserProfileViewModel()
+            using(var client = new HttpClient()) 
             {
-                Name = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value,
-                EmailAddress = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value,
-                ProfileImage = User.Claims.FirstOrDefault(c => c.Type == "picture")?.Value
-            });
+                client.DefaultRequestHeaders.Add("Authorization","Bearer " + accessToken);
+                var url = "https://sgmeyer-clean.auth0.com/userinfo";
+                var response = await client.GetAsync(url);
+                var data = await response.Content.ReadAsStringAsync();
+                var userInfo = JsonConvert.DeserializeObject<UserInfo>(data);
+
+                Console.WriteLine(userInfo.Email);
+                Console.WriteLine(userInfo.EmailVerified);
+                Console.WriteLine(userInfo.Name);
+                Console.WriteLine(userInfo.Nickname);
+                Console.WriteLine(userInfo.Picture);
+                Console.WriteLine(userInfo.Sub);
+                Console.WriteLine(userInfo.UpdatedAt);
+
+                return View(new UserProfileViewModel()
+                {
+                    Name = userInfo.Name,
+                    EmailAddress = userInfo.Email,
+                    ProfileImage = userInfo.Picture
+                });
+            }
         }
 
         /// <summary>
